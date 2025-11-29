@@ -504,7 +504,7 @@
             }
         });
 
-        // Handle form submission
+        // Handle form submission using form action (most reliable method)
         document.getElementById('registrationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -515,45 +515,68 @@
             submitButton.disabled = true;
             submitButton.textContent = 'Submitting...';
             
-            try {
-                // Get form data
-                const formData = new FormData(e.target);
-                const data = {};
-                
-                // Convert FormData to object
-                for (let [key, value] of formData.entries()) {
-                    if (key === 'photo' && value.size > 0) {
-                        // Convert photo to base64
-                        const base64 = await fileToBase64(value);
-                        data[key] = base64;
-                    } else if (key !== 'photo') {
-                        data[key] = value;
-                    }
+            // Get form data
+            const formData = new FormData(e.target);
+            
+            // Google Apps Script URL
+            const scriptURL = 'https://script.google.com/macros/s/AKfycbzT1ndw8LLugVe3rrKLZnD0MiPsi24Lta_RZHpH3NW6UFGkwIQnmr_TTjlFMGLhyqRuDg/exec';
+            
+            // Create a hidden iframe for submission
+            let iframe = document.getElementById('hidden_iframe');
+            if (!iframe) {
+                iframe = document.createElement('iframe');
+                iframe.id = 'hidden_iframe';
+                iframe.name = 'hidden_iframe';
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+            }
+            
+            // Create a temporary form
+            const tempForm = document.createElement('form');
+            tempForm.action = scriptURL;
+            tempForm.method = 'POST';
+            tempForm.target = 'hidden_iframe';
+            
+            // Convert photo to base64 if exists
+            const photoFile = document.getElementById('photo').files[0];
+            let photoData = '';
+            
+            if (photoFile) {
+                photoData = await fileToBase64(photoFile);
+            }
+            
+            // Add all form data to temp form
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'photo') {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    tempForm.appendChild(input);
                 }
+            }
+            
+            // Add photo data as hidden input
+            if (photoData) {
+                const photoInput = document.createElement('input');
+                photoInput.type = 'hidden';
+                photoInput.name = 'photoData';
+                photoInput.value = photoData;
+                tempForm.appendChild(photoInput);
+            }
+            
+            // Append and submit
+            document.body.appendChild(tempForm);
+            tempForm.submit();
+            
+            // Clean up and show success
+            setTimeout(() => {
+                document.body.removeChild(tempForm);
                 
-                // Google Apps Script URL
-                const scriptURL = 'https://script.google.com/macros/s/AKfycbzT1ndw8LLugVe3rrKLZnD0MiPsi24Lta_RZHpH3NW6UFGkwIQnmr_TTjlFMGLhyqRuDg/exec';
-                
-                // Create URL parameters
-                const params = new URLSearchParams();
-                for (let key in data) {
-                    params.append(key, data[key]);
-                }
-                
-                // Use fetch with no-cors mode
-                await fetch(scriptURL + '?' + params.toString(), {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data)
-                });
-                
-                // Assume success with no-cors
                 statusMessage.textContent = '✅ Registration submitted successfully!';
                 statusMessage.className = 'status-message success';
                 statusMessage.style.display = 'block';
+                
                 e.target.reset();
                 document.getElementById('photoPreview').innerHTML = '';
                 document.querySelector('.file-input-label').innerHTML = `
@@ -563,19 +586,14 @@
                     Choose Photo
                 `;
                 
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit Information';
+                
                 // Show thank you modal
                 setTimeout(() => {
                     document.getElementById('thankYouModal').style.display = 'block';
                 }, 500);
-                
-            } catch (error) {
-                statusMessage.textContent = '❌ Error submitting form. Please try again.';
-                statusMessage.className = 'status-message error';
-                statusMessage.style.display = 'block';
-            } finally {
-                submitButton.disabled = false;
-                submitButton.textContent = 'Submit Information';
-            }
+            }, 1000);
         });
         
         // Convert file to base64
